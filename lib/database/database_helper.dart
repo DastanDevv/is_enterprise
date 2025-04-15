@@ -23,13 +23,12 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, // Увеличиваем версию для миграции
+      version: 3, // Повышаем версию для добавления таблицы транзакций
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
   }
 
-  // Обновление базы данных
   // Обновление базы данных
   Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
@@ -44,30 +43,30 @@ class DatabaseHelper {
 
       // 2. Создаем новую таблицу с нужной структурой и внешним ключом
       await db.execute('''
-    CREATE TABLE projects (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      client_id TEXT NOT NULL,
-      client_name TEXT NOT NULL,
-      start_date TEXT NOT NULL,
-      end_date TEXT,
-      actual_end_date TEXT,
-      budget REAL NOT NULL,
-      status INTEGER NOT NULL,
-      progress REAL NOT NULL,
-      manager_id TEXT,
-      team_members TEXT,
-      notes TEXT,
-      FOREIGN KEY (client_id) REFERENCES clients (id)
-    )
-    ''');
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        client_name TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        actual_end_date TEXT,
+        budget REAL NOT NULL,
+        status INTEGER NOT NULL,
+        progress REAL NOT NULL,
+        manager_id TEXT,
+        team_members TEXT,
+        notes TEXT,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+      )
+      ''');
 
       // 3. Копируем данные из старой таблицы в новую
       await db.execute('''
-    INSERT INTO projects
-    SELECT * FROM projects_old
-    ''');
+      INSERT INTO projects
+      SELECT * FROM projects_old
+      ''');
 
       // 4. Удаляем старую таблицу
       await db.execute('DROP TABLE projects_old');
@@ -79,26 +78,31 @@ class DatabaseHelper {
       );
 
       await db.execute('''
-    CREATE TABLE project_stages (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      start_date TEXT NOT NULL,
-      end_date TEXT,
-      weight REAL NOT NULL,
-      completed INTEGER NOT NULL,
-      "order" INTEGER NOT NULL,
-      FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
-    )
-    ''');
+      CREATE TABLE project_stages (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        weight REAL NOT NULL,
+        completed INTEGER NOT NULL,
+        "order" INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+      )
+      ''');
 
       await db.execute('''
-    INSERT INTO project_stages
-    SELECT * FROM project_stages_old
-    ''');
+      INSERT INTO project_stages
+      SELECT * FROM project_stages_old
+      ''');
 
       await db.execute('DROP TABLE project_stages_old');
+    }
+
+    if (oldVersion < 3) {
+      // Добавляем таблицу транзакций для модуля финансов
+      await _createTransactionsTable(db);
     }
   }
 
@@ -150,6 +154,9 @@ class DatabaseHelper {
       FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
     )
     ''');
+
+    // Таблица финансовых транзакций
+    await _createTransactionsTable(db);
   }
 
   // Создание таблицы клиентов
@@ -172,6 +179,32 @@ class DatabaseHelper {
       notes $textNullableType,
       created_at $textType,
       last_contact_date $textNullableType
+    )
+    ''');
+  }
+
+  // Создание таблицы финансовых транзакций
+  Future _createTransactionsTable(Database db) async {
+    const idType = 'TEXT PRIMARY KEY';
+    const textType = 'TEXT NOT NULL';
+    const textNullableType = 'TEXT';
+    const intType = 'INTEGER NOT NULL';
+    const realType = 'REAL NOT NULL';
+
+    await db.execute('''
+    CREATE TABLE transactions (
+      id $idType,
+      type $intType,
+      category $intType,
+      amount $realType,
+      date $textType,
+      description $textNullableType,
+      project_id $textNullableType,
+      project_name $textNullableType,
+      client_id $textNullableType,
+      client_name $textNullableType,
+      FOREIGN KEY (project_id) REFERENCES projects (id),
+      FOREIGN KEY (client_id) REFERENCES clients (id)
     )
     ''');
   }

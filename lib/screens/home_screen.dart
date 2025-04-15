@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_vkr/screens/clients/clients_screen.dart';
+import 'package:flutter_vkr/screens/finances/transactions_screen.dart';
 import 'package:flutter_vkr/screens/projects/projects_screen.dart';
 import 'package:flutter_vkr/screens/settings/settings_screen.dart';
 import 'login_screen.dart';
@@ -14,12 +15,19 @@ class HomeScreen extends StatefulWidget {
 
 class HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  final List<String> _titles = ['Главная', 'Проекты', 'Клиенты', 'Настройки'];
+  final List<String> _titles = [
+    'Главная',
+    'Проекты',
+    'Клиенты',
+    'Финансы',
+    'Настройки',
+  ];
 
   final List<Widget> _screens = [
     DashboardScreen(),
     ProjectsScreen(),
     ClientsScreen(),
+    TransactionsScreen(),
     SettingsScreen(),
   ];
 
@@ -118,6 +126,12 @@ class HomeScreenState extends State<HomeScreen> {
                 activeIcon: Icon(Icons.people),
                 label: 'Клиенты',
               ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.account_balance_wallet_outlined),
+                activeIcon: Icon(Icons.account_balance_wallet),
+                label: 'Финансы',
+              ),
+
               BottomNavigationBarItem(
                 icon: Icon(Icons.settings_outlined),
                 activeIcon: Icon(Icons.settings),
