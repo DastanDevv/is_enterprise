@@ -404,8 +404,9 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
                     children: [
                       Text(
                         'Доход: ${currencyFormat.format(income)}',

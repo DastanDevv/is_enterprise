@@ -79,7 +79,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
       // home: LoginScreen(),
-      home: LoginScreen(),
+      home: HomeScreen(),
       routes: {'/home': (context) => HomeScreen()},
     );
   }

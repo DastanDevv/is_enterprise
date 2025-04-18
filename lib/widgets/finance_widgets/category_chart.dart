@@ -96,6 +96,7 @@ class CategoryPieChart extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 4),
@@ -103,12 +104,15 @@ class CategoryPieChart extends StatelessWidget {
                 '${percentage.toStringAsFixed(1)}%',
                 style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
-              const SizedBox(width: 8),
-              Text(
-                currencyFormat.format(value),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  currencyFormat.format(value),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
