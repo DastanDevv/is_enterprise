@@ -25,7 +25,6 @@ class CategoryPieChart extends StatelessWidget {
         ),
       );
     }
-
     // Форматер для валюты
     final currencyFormat = NumberFormat.currency(
       locale: 'ru_RU',

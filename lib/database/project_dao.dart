@@ -97,6 +97,8 @@ class ProjectDao {
   // Обновление проекта
   Future<int> updateProject(Project project) async {
     final db = await dbHelper.database;
+    double progress = project.calculateProgress();
+    project.copyWith(progress: progress);
 
     // Обновляем информацию о проекте
     final result = await db.update(
@@ -170,15 +172,42 @@ class ProjectDao {
   }
 
   // Обновление статуса этапа проекта
-  Future<int> updateStageStatus(String stageId, bool completed) async {
+  Future<void> updateStageStatus(String stageId, bool completed) async {
+    // Обновляем статус этапа
     final db = await dbHelper.database;
-
-    return await db.update(
+    await db.update(
       'project_stages',
       {'completed': completed ? 1 : 0},
       where: 'id = ?',
       whereArgs: [stageId],
     );
+
+    // Находим, к какому проекту относится этап
+    final stageData = await db.query(
+      'project_stages',
+      where: 'id = ?',
+      whereArgs: [stageId],
+    );
+
+    if (stageData.isNotEmpty) {
+      final projectId = stageData.first['project_id'] as String;
+
+      // Получаем проект с обновленными этапами
+      final project = await getProjectById(projectId);
+
+      // Пересчитываем прогресс
+      if (project != null) {
+        final newProgress = project.calculateProgress();
+
+        // Обновляем прогресс в БД
+        await db.update(
+          'projects',
+          {'progress': newProgress},
+          where: 'id = ?',
+          whereArgs: [projectId],
+        );
+      }
+    }
   }
 
   // Получение проектов с фильтрацией и сортировкой

@@ -41,7 +41,6 @@ class SummaryCard extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-
               // Доходы
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

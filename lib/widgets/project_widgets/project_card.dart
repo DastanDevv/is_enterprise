@@ -20,7 +20,6 @@ class ProjectCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // Форматер для дат
     final dateFormat = DateFormat('dd.MM.yyyy');
-
     // Форматер для валюты (в сомах)
     final currencyFormat = NumberFormat.currency(
       locale: 'ru_RU',
@@ -31,7 +30,6 @@ class ProjectCard extends StatelessWidget {
     // Вычисляем оставшиеся дни до дедлайна
     int daysLeft = 0;
     bool isOverdue = false;
-
     if (project.endDate != null) {
       final now = DateTime.now();
       final difference = project.endDate!.difference(now);
