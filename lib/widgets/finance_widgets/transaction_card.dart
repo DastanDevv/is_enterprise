@@ -55,7 +55,6 @@ class TransactionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 16),
-
                   // Основная информация о транзакции
                   Expanded(
                     child: Column(

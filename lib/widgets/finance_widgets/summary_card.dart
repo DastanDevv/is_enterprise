@@ -8,12 +8,12 @@ class SummaryCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const SummaryCard({
-    Key? key,
+    super.key,
     required this.income,
     required this.expense,
     required this.balance,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

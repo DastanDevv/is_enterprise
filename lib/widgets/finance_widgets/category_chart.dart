@@ -9,11 +9,11 @@ class CategoryPieChart extends StatelessWidget {
   final double totalAmount;
 
   const CategoryPieChart({
-    Key? key,
+    super.key,
     required this.data,
     required this.type,
     required this.totalAmount,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

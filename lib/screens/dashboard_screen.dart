@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_vkr/database/client_dao.dart';
+import 'package:flutter_vkr/database/project_dao.dart';
+import 'package:flutter_vkr/database/transaction_dao.dart';
+import 'package:flutter_vkr/models/project.dart';
+import 'package:flutter_vkr/models/finance.dart';
 import 'package:flutter_vkr/screens/clients/add_edit_client_screen.dart';
 import 'package:flutter_vkr/screens/projects/add_edit_project_screen.dart';
 import 'package:flutter_vkr/screens/projects/projects_screen.dart';
+import 'package:flutter_vkr/screens/projects/project_details_screen.dart';
+import 'package:flutter_vkr/screens/finances/add_edit_transaction_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
-
-// Импортируем будущие экраны (вы их создадите позже)
-// import 'project_details_screen.dart';
-// import 'client_details_screen.dart';
-// import 'task_details_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,101 +21,256 @@ class DashboardScreen extends StatefulWidget {
 
 class DashboardScreenState extends State<DashboardScreen> {
   final ScrollController _scrollController = ScrollController();
+  final ProjectDao _projectDao = ProjectDao();
+  final ClientDao _clientDao = ClientDao();
+  final TransactionDao _transactionDao = TransactionDao();
 
-  // Демо-данные
+  // Данные для отображения
   final String _username = "Администратор";
-  final int _activeProjects = 8;
-  final int _completedProjects = 15;
-  final int _clients = 24;
-  final double _monthRevenue = 420000;
-  final List<Task> _upcomingTasks = [
-    Task(
-      id: '1',
-      title: 'Подготовить маркетинговый план для Клиента Нурболот',
-      dueDate: DateTime.now().add(Duration(days: 2)),
-      priority: TaskPriority.high,
-      status: TaskStatus.inProgress,
-    ),
-    Task(
-      id: '2',
-      title: 'Обновить дизайн для веб-сайта Клиента Миррадов Эгемберди',
-      dueDate: DateTime.now().add(Duration(days: 1)),
-      priority: TaskPriority.medium,
-      status: TaskStatus.inProgress,
-    ),
-    Task(
-      id: '3',
-      title: 'Составить финансовый отчет за квартал',
-      dueDate: DateTime.now().add(Duration(hours: 5)),
-      priority: TaskPriority.high,
-      status: TaskStatus.inProgress,
-    ),
-    Task(
-      id: '4',
-      title: 'Встреча с потенциальным клиентом',
-      dueDate: DateTime.now().add(Duration(days: 3)),
-      priority: TaskPriority.medium,
-      status: TaskStatus.notStarted,
-    ),
-  ];
+  int _activeProjects = 0;
+  int _completedProjects = 0;
+  int _clients = 0;
+  double _monthRevenue = 0;
+  List<Task> _upcomingTasks = [];
+  List<Project> _recentProjects = [];
+  List<Activity> _recentActivities = [];
+  List<FlSpot> _revenueData = [];
+  bool _isLoading = true;
 
-  final List<Project> _recentProjects = [
-    Project(
-      id: '1',
-      name: 'Редизайн веб-сайта для ООО "Прогресс"',
-      client: 'ООО "Прогресс"',
-      progress: 0.75,
-      dueDate: DateTime.now().add(Duration(days: 7)),
-    ),
-    Project(
-      id: '2',
-      name: 'Разработка мобильного приложения для ИП Иванов',
-      client: 'ИП Иванов',
-      progress: 0.3,
-      dueDate: DateTime.now().add(Duration(days: 14)),
-    ),
-    Project(
-      id: '3',
-      name: 'Маркетинговая кампания для ООО "Ритейл+"',
-      client: 'ООО "Ритейл+"',
-      progress: 0.9,
-      dueDate: DateTime.now().add(Duration(days: 2)),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
 
-  final List<Activity> _recentActivities = [
-    Activity(
-      type: ActivityType.projectUpdate,
-      message:
-          'Завершен этап "Дизайн макетов" для проекта "Редизайн веб-сайта"',
-      timestamp: DateTime.now().subtract(Duration(hours: 2)),
-    ),
-    Activity(
-      type: ActivityType.clientAdded,
-      message: 'Добавлен новый клиент: ООО "ТехноСервис"',
-      timestamp: DateTime.now().subtract(Duration(hours: 5)),
-    ),
-    Activity(
-      type: ActivityType.paymentReceived,
-      message: 'Получен платеж 120 000 сом от ООО "Ритейл+"',
-      timestamp: DateTime.now().subtract(Duration(hours: 8)),
-    ),
-    Activity(
-      type: ActivityType.taskCompleted,
-      message: 'Завершена задача "Разработка логотипа" для ООО "Прогресс"',
-      timestamp: DateTime.now().subtract(Duration(days: 1)),
-    ),
-  ];
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  // Данные для графика доходов
-  final List<FlSpot> _revenueData = [
-    FlSpot(0, 300000),
-    FlSpot(1, 280000),
-    FlSpot(2, 320000),
-    FlSpot(3, 360000),
-    FlSpot(4, 400000),
-    FlSpot(5, 420000),
-  ];
+    try {
+      // Получаем имя пользователя из настроек (если реализовано)
+      // В этой версии используем фиксированное значение
+
+      // Загружаем данные о проектах
+      final allProjects = await _projectDao.getAllProjects();
+      final activeProjects =
+          allProjects
+              .where(
+                (p) =>
+                    p.status == ProjectStatus.inProgress ||
+                    p.status == ProjectStatus.planning,
+              )
+              .toList();
+      final completedProjects =
+          allProjects
+              .where((p) => p.status == ProjectStatus.completed)
+              .toList();
+
+      // Последние проекты (3 или меньше)
+      final recentProjects = activeProjects.take(3).toList();
+
+      // Загружаем данные о клиентах
+      final allClients = await _clientDao.getAllClients();
+
+      // Загружаем данные о финансах
+      // Получаем доход за текущий месяц
+      final startOfMonth = DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        1,
+      );
+      final endOfMonth = DateTime(
+        DateTime.now().year,
+        DateTime.now().month + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+
+      final monthIncome = await _transactionDao.getTotalIncome(
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+      );
+
+      // Генерируем данные для графика доходов за 6 месяцев
+      final revenueData = await _generateRevenueData();
+
+      // Генерируем задачи из этапов проектов
+      final upcomingTasks = await _generateTasksFromProjectStages(allProjects);
+
+      // Генерируем последние активности на основе транзакций и изменений проектов
+      final recentActivities = await _generateRecentActivities();
+
+      if (mounted) {
+        setState(() {
+          _activeProjects = activeProjects.length;
+          _completedProjects = completedProjects.length;
+          _clients = allClients.length;
+          _monthRevenue = monthIncome;
+          _recentProjects = recentProjects;
+          _upcomingTasks = upcomingTasks;
+          _recentActivities = recentActivities;
+          _revenueData = revenueData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Ошибка при загрузке данных дашборда: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Генерирует данные о доходах за последние 6 месяцев
+  Future<List<FlSpot>> _generateRevenueData() async {
+    List<FlSpot> revenueData = [];
+
+    final now = DateTime.now();
+    // Получаем данные за последние 6 месяцев
+    for (int i = 5; i >= 0; i--) {
+      final month = now.month - i;
+      final year = now.year + (month <= 0 ? -1 : 0);
+      final adjustedMonth = month <= 0 ? month + 12 : month;
+
+      final startDate = DateTime(year, adjustedMonth, 1);
+      final endDate = DateTime(year, adjustedMonth + 1, 0, 23, 59, 59);
+
+      final monthlyIncome = await _transactionDao.getTotalIncome(
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      revenueData.add(FlSpot(5 - i.toDouble(), monthlyIncome));
+    }
+
+    return revenueData;
+  }
+
+  // Генерирует задачи на основе этапов проектов
+  Future<List<Task>> _generateTasksFromProjectStages(
+    List<Project> projects,
+  ) async {
+    List<Task> tasks = [];
+
+    for (var project in projects) {
+      // Только активные проекты
+      if (project.status == ProjectStatus.inProgress ||
+          project.status == ProjectStatus.planning) {
+        // Только невыполненные этапы
+        final incompleteStages =
+            project.stages.where((stage) => !stage.completed).toList();
+
+        for (var stage in incompleteStages) {
+          // Создаем задачу на основе этапа
+          final task = Task(
+            id: stage.id,
+            title: '${stage.name} (${project.name})',
+            dueDate:
+                stage.endDate ??
+                DateTime.now().add(
+                  const Duration(days: 7),
+                ), // Если нет даты окончания, устанавливаем +7 дней
+            priority: _determinePriority(stage.endDate),
+            status: TaskStatus.inProgress,
+            projectId: project.id,
+            projectName: project.name,
+          );
+
+          tasks.add(task);
+        }
+      }
+    }
+
+    // Сортировка задач по дате
+    tasks.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+
+    // Ограничиваем количество задач
+    return tasks.take(4).toList();
+  }
+
+  // Определяет приоритет задачи на основе даты окончания
+  TaskPriority _determinePriority(DateTime? endDate) {
+    if (endDate == null) return TaskPriority.medium;
+
+    final now = DateTime.now();
+    final difference = endDate.difference(now).inDays;
+
+    if (difference < 0) return TaskPriority.high; // Просрочено
+    if (difference < 3) return TaskPriority.high; // Меньше 3 дней
+    if (difference < 7) return TaskPriority.medium; // Меньше недели
+    return TaskPriority.low; // Больше недели
+  }
+
+  // Генерирует последние активности на основе транзакций и изменений в проектах
+  Future<List<Activity>> _generateRecentActivities() async {
+    List<Activity> activities = [];
+
+    // Получаем последние транзакции
+    final transactions = await _transactionDao.getAllTransactions();
+    final recentTransactions = transactions.take(2).toList();
+
+    for (var transaction in recentTransactions) {
+      ActivityType type;
+      String message;
+
+      if (transaction.type == TransactionType.income) {
+        type = ActivityType.paymentReceived;
+        message = 'Получен платеж ${transaction.getFormattedAmount()}';
+        if (transaction.clientName != null) {
+          message += ' от ${transaction.clientName}';
+        }
+      } else {
+        type = ActivityType.taskCompleted; // Используем этот тип для расходов
+        message =
+            'Оплачено ${transaction.getFormattedAmount()} за ${transaction.category.name}';
+      }
+
+      activities.add(
+        Activity(type: type, message: message, timestamp: transaction.date),
+      );
+    }
+
+    // Добавляем активности на основе последних проектов и клиентов
+    try {
+      final projects = await _projectDao.getAllProjects();
+      if (projects.isNotEmpty) {
+        final latestProject = projects.first;
+        activities.add(
+          Activity(
+            type: ActivityType.projectUpdate,
+            message:
+                'Обновлен проект "${latestProject.name}" (${latestProject.status.name})',
+            timestamp: DateTime.now().subtract(const Duration(hours: 3)),
+          ),
+        );
+      }
+
+      final clients = await _clientDao.getAllClients();
+      if (clients.isNotEmpty) {
+        final latestClient = clients.first;
+        activities.add(
+          Activity(
+            type: ActivityType.clientAdded,
+            message: 'Добавлен новый клиент: ${latestClient.name}',
+            timestamp: DateTime.now().subtract(const Duration(hours: 6)),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Ошибка при генерации активностей: $e');
+    }
+
+    // Сортировка активностей по дате (сначала новые)
+    activities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    // Ограничиваем количество активностей
+    return activities.take(4).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,44 +281,50 @@ class DashboardScreenState extends State<DashboardScreen> {
     final formattedTime = timeFormat.format(now);
 
     return Scaffold(
-      backgroundColor: Color(0xFFF5F7FF),
+      backgroundColor: const Color(0xFFF5F7FF),
       body: SafeArea(
-        child: Scrollbar(
-          controller: _scrollController,
-          child: ListView(
-            controller: _scrollController,
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            children: [
-              // Приветствие и информация о дате
-              _buildGreetingSection(formattedDate, formattedTime),
-              SizedBox(height: 24),
+        child:
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : Scrollbar(
+                  controller: _scrollController,
+                  child: ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 20,
+                    ),
+                    children: [
+                      // Приветствие и информация о дате
+                      _buildGreetingSection(formattedDate, formattedTime),
+                      const SizedBox(height: 24),
 
-              // KPI (Ключевые показатели)
-              _buildKpiSection(),
-              SizedBox(height: 24),
+                      // KPI (Ключевые показатели)
+                      _buildKpiSection(),
+                      const SizedBox(height: 24),
 
-              // График доходов
-              _buildRevenueChart(),
-              SizedBox(height: 24),
+                      // График доходов
+                      _buildRevenueChart(),
+                      const SizedBox(height: 24),
 
-              // Быстрые действия
-              _buildQuickActions(),
-              SizedBox(height: 24),
+                      // Быстрые действия
+                      _buildQuickActions(),
+                      const SizedBox(height: 24),
 
-              // Предстоящие задачи
-              _buildUpcomingTasks(),
-              SizedBox(height: 24),
+                      // Предстоящие задачи
+                      _buildUpcomingTasks(),
+                      const SizedBox(height: 24),
 
-              // Последние проекты
-              _buildRecentProjects(),
-              SizedBox(height: 24),
+                      // Последние проекты
+                      _buildRecentProjects(),
+                      const SizedBox(height: 24),
 
-              // Последние активности
-              _buildRecentActivities(),
-              SizedBox(height: 24),
-            ],
-          ),
-        ),
+                      // Последние активности
+                      _buildRecentActivities(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
       ),
     );
   }
@@ -180,7 +343,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
 
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -195,7 +358,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           BoxShadow(
             color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
             blurRadius: 10,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -210,16 +373,16 @@ class DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Text(
                     '$greeting,',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w300,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     _username,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -228,7 +391,10 @@ class DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -237,7 +403,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Text(
                       date,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -245,7 +411,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                     ),
                     Text(
                       time,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -256,10 +422,10 @@ class DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             'Сегодня у вас $_activeProjects активных проектов и ${_upcomingTasks.where((task) => task.dueDate.day == DateTime.now().day).length} задач на сегодня',
-            style: TextStyle(color: Colors.white, fontSize: 16),
+            style: const TextStyle(color: Colors.white, fontSize: 16),
           ),
         ],
       ),
@@ -271,7 +437,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Ключевые показатели',
           style: TextStyle(
             fontSize: 18,
@@ -279,9 +445,9 @@ class DashboardScreenState extends State<DashboardScreen> {
             color: Color(0xFF333333),
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         GridView.count(
-          physics: NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           shrinkWrap: true,
           crossAxisCount: 2,
           childAspectRatio: 1.5,
@@ -298,20 +464,20 @@ class DashboardScreenState extends State<DashboardScreen> {
               title: 'Клиенты',
               value: '$_clients',
               icon: Icons.people,
-              color: Color(0xFF26A69A),
+              color: const Color(0xFF26A69A),
             ),
             _buildKpiCard(
               title: 'Завершенные проекты',
               value: '$_completedProjects',
               icon: Icons.check_circle,
-              color: Color(0xFF66BB6A),
+              color: const Color(0xFF66BB6A),
             ),
             _buildKpiCard(
               title: 'Доход за месяц',
               value:
                   '${NumberFormat.currency(locale: 'ru_RU', symbol: 'сом', decimalDigits: 0).format(_monthRevenue)}',
               icon: Icons.monetization_on,
-              color: Color(0xFFFFB74D),
+              color: const Color(0xFFFFB74D),
             ),
           ],
         ),
@@ -327,7 +493,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     required Color color,
   }) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -335,7 +501,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -346,7 +512,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(8),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -355,16 +521,16 @@ class DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          Spacer(),
+          const Spacer(),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Color(0xFF333333),
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(title, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         ],
       ),
@@ -373,10 +539,40 @@ class DashboardScreenState extends State<DashboardScreen> {
 
   // График доходов
   Widget _buildRevenueChart() {
-    final months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь'];
+    // Определяем последние 6 месяцев для отображения на графике
+    final currentMonth = DateTime.now().month;
+    final currentYear = DateTime.now().year;
+    final monthLabels = <String>[];
+
+    for (int i = 5; i >= 0; i--) {
+      final month = currentMonth - i;
+      final year = currentYear + (month <= 0 ? -1 : 0);
+      final adjustedMonth = month <= 0 ? month + 12 : month;
+
+      final monthName = DateFormat(
+        'MMMM',
+        'ru_RU',
+      ).format(DateTime(year, adjustedMonth, 1));
+      monthLabels.add(monthName);
+    }
+
+    // Находим максимальное и минимальное значения для оси Y
+    double maxY = 0;
+    double minY = double.infinity;
+
+    for (var spot in _revenueData) {
+      if (spot.y > maxY) maxY = spot.y;
+      if (spot.y < minY) minY = spot.y;
+    }
+
+    // Корректируем минимальное значение для лучшего отображения
+    minY = minY > 0 ? (minY * 0.8) : 0;
+
+    // Корректируем максимальное значение
+    maxY = maxY * 1.2;
 
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -384,7 +580,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -394,7 +590,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Доходы компании',
                 style: TextStyle(
                   fontSize: 16,
@@ -403,20 +599,23 @@ class DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '2025 год',
+                  '${DateTime.now().year} год',
                   style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 20),
-          Container(
+          const SizedBox(height: 20),
+          SizedBox(
             height: 200,
             child: LineChart(
               LineChartData(
@@ -430,10 +629,10 @@ class DashboardScreenState extends State<DashboardScreen> {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  rightTitles: AxisTitles(
+                  rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  topTitles: AxisTitles(
+                  topTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
                   bottomTitles: AxisTitles(
@@ -443,7 +642,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                       interval: 1,
                       getTitlesWidget: (value, meta) {
                         if (value.toInt() >= 0 &&
-                            value.toInt() < months.length) {
+                            value.toInt() < monthLabels.length) {
                           return SideTitleWidget(
                             fitInside: SideTitleFitInsideData(
                               enabled: true,
@@ -453,7 +652,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                             ),
                             meta: meta,
                             child: Text(
-                              months[value.toInt()],
+                              monthLabels[value.toInt()],
                               style: TextStyle(
                                 color: Colors.grey[600],
                                 fontSize: 12,
@@ -468,8 +667,9 @@ class DashboardScreenState extends State<DashboardScreen> {
                             distanceFromEdge: 0,
                             parentAxisSize: meta.parentAxisSize,
                           ),
+                          space: 8,
                           meta: meta,
-                          child: Text(''),
+                          child: const Text(''),
                         );
                       },
                     ),
@@ -503,8 +703,8 @@ class DashboardScreenState extends State<DashboardScreen> {
                 borderData: FlBorderData(show: false),
                 minX: 0,
                 maxX: 5,
-                minY: 200000,
-                maxY: 500000,
+                minY: minY,
+                maxY: maxY,
                 lineBarsData: [
                   LineChartBarData(
                     spots: _revenueData,
@@ -517,7 +717,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                     ),
                     barWidth: 3,
                     isStrokeCapRound: true,
-                    dotData: FlDotData(show: true),
+                    dotData: const FlDotData(show: true),
                     belowBarData: BarAreaData(
                       show: true,
                       gradient: LinearGradient(
@@ -538,7 +738,7 @@ class DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -549,7 +749,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Быстрые действия',
           style: TextStyle(
             fontSize: 18,
@@ -557,7 +757,7 @@ class DashboardScreenState extends State<DashboardScreen> {
             color: Color(0xFF333333),
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -571,61 +771,75 @@ class DashboardScreenState extends State<DashboardScreen> {
                     MaterialPageRoute(
                       builder: (context) => const AddEditProjectScreen(),
                     ),
-                  );
+                  ).then((_) => _loadDashboardData());
                 },
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: _buildActionButton(
                 title: 'Новый клиент',
                 icon: Icons.person_add_rounded,
-                color: Color(0xFF26A69A),
+                color: const Color(0xFF26A69A),
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const AddEditClientScreen(),
                     ),
-                  );
+                  ).then((_) => _loadDashboardData());
                 },
               ),
             ),
           ],
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
               child: _buildActionButton(
                 title: 'Новая задача',
                 icon: Icons.add_task_rounded,
-                color: Color(0xFF66BB6A),
-                onTap: () {
-                  // Показать модальное окно для создания задачи
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Создание новой задачи'),
-                      behavior: SnackBarBehavior.floating,
+                color: const Color(0xFF66BB6A),
+                onTap: () async {
+                  // Показываем диалог выбора проекта
+                  final projects = await _projectDao.getAllProjects();
+                  if (!context.mounted) return;
+
+                  if (projects.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Создайте сначала проект для добавления задачи',
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddEditProjectScreen(),
                     ),
-                  );
+                  ).then((_) => _loadDashboardData());
                 },
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: _buildActionButton(
                 title: 'Новый платеж',
                 icon: Icons.payments_rounded,
-                color: Color(0xFFFFB74D),
+                color: const Color(0xFFFFB74D),
                 onTap: () {
-                  // Показать модальное окно для создания платежа
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Создание нового платежа'),
-                      behavior: SnackBarBehavior.floating,
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddEditTransactionScreen(),
                     ),
-                  );
+                  ).then((_) => _loadDashboardData());
                 },
               ),
             ),
@@ -646,7 +860,7 @@ class DashboardScreenState extends State<DashboardScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -654,7 +868,7 @@ class DashboardScreenState extends State<DashboardScreen> {
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              offset: Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -662,20 +876,20 @@ class DashboardScreenState extends State<DashboardScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 24),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               title,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Color(0xFF333333),
+                color: const Color(0xFF333333),
               ),
             ),
           ],
@@ -692,7 +906,7 @@ class DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
+            const Text(
               'Предстоящие задачи',
               style: TextStyle(
                 fontSize: 18,
@@ -702,13 +916,13 @@ class DashboardScreenState extends State<DashboardScreen> {
             ),
             TextButton(
               onPressed: () {
-                // Переход на экран всех задач
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Переход к списку всех задач'),
-                    behavior: SnackBarBehavior.floating,
+                // Переход на экран всех проектов, так как задачи - это этапы проектов
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProjectsScreen(),
                   ),
-                );
+                ).then((_) => _loadDashboardData());
               },
               child: Text(
                 'Все задачи',
@@ -717,18 +931,60 @@ class DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        SizedBox(height: 12),
-        ListView.separated(
-          physics: NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          itemCount: _upcomingTasks.length,
-          separatorBuilder: (context, index) => SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final task = _upcomingTasks[index];
-            return _buildTaskItem(task);
-          },
-        ),
+        const SizedBox(height: 12),
+        _upcomingTasks.isEmpty
+            ? _buildEmptyTasksState()
+            : ListView.separated(
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              itemCount: _upcomingTasks.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final task = _upcomingTasks[index];
+                return _buildTaskItem(task);
+              },
+            ),
       ],
+    );
+  }
+
+  // Пустое состояние для задач
+  Widget _buildEmptyTasksState() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(Icons.task_alt, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Нет предстоящих задач',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Завершите этапы проектов или добавьте новые',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -774,17 +1030,20 @@ class DashboardScreenState extends State<DashboardScreen> {
 
     return InkWell(
       onTap: () {
-        // Переход на экран детальной информации о задаче
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Просмотр задачи: ${task.title}'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        // Переход на экран детальной информации о проекте
+        if (task.projectId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => ProjectDetailsScreen(projectId: task.projectId!),
+            ),
+          ).then((_) => _loadDashboardData());
+        }
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -792,7 +1051,7 @@ class DashboardScreenState extends State<DashboardScreen> {
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              offset: Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -802,26 +1061,26 @@ class DashboardScreenState extends State<DashboardScreen> {
             Container(
               width: 16,
               height: 16,
-              margin: EdgeInsets.only(top: 4),
+              margin: const EdgeInsets.only(top: 4),
               decoration: BoxDecoration(
                 color: priorityColor,
                 shape: BoxShape.circle,
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     task.title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF333333),
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(
@@ -829,7 +1088,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                         size: 14,
                         color: isOverdue ? Colors.red : Colors.grey[600],
                       ),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Text(
                         dueDateText,
                         style: TextStyle(
@@ -843,7 +1102,7 @@ class DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             Container(
-              padding: EdgeInsets.all(8),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(8),
@@ -868,7 +1127,7 @@ class DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
+            const Text(
               'Текущие проекты',
               style: TextStyle(
                 fontSize: 18,
@@ -883,7 +1142,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                   MaterialPageRoute<void>(
                     builder: (BuildContext context) => const ProjectsScreen(),
                   ),
-                );
+                ).then((_) => _loadDashboardData());
               },
               child: Text(
                 'Все проекты',
@@ -892,18 +1151,60 @@ class DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        SizedBox(height: 12),
-        ListView.separated(
-          physics: NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          itemCount: _recentProjects.length,
-          separatorBuilder: (context, index) => SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final project = _recentProjects[index];
-            return _buildProjectItem(project);
-          },
-        ),
+        const SizedBox(height: 12),
+        _recentProjects.isEmpty
+            ? _buildEmptyProjectsState()
+            : ListView.separated(
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              itemCount: _recentProjects.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final project = _recentProjects[index];
+                return _buildProjectItem(project);
+              },
+            ),
       ],
+    );
+  }
+
+  // Пустое состояние для проектов
+  Widget _buildEmptyProjectsState() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(Icons.folder_outlined, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Нет активных проектов',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Создайте новый проект, чтобы начать работу',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -911,7 +1212,10 @@ class DashboardScreenState extends State<DashboardScreen> {
   Widget _buildProjectItem(Project project) {
     // Форматируем дату дедлайна
     final dateFormat = DateFormat('dd.MM.yyyy', 'ru_RU');
-    final formattedDueDate = dateFormat.format(project.dueDate);
+    final formattedDueDate =
+        project.endDate != null
+            ? dateFormat.format(project.endDate!)
+            : 'Не указан';
 
     // Определяем цвет прогресса
     Color progressColor;
@@ -924,21 +1228,25 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
 
     // Рассчитываем оставшиеся дни
-    final daysLeft = project.dueDate.difference(DateTime.now()).inDays;
+    int daysLeft = 0;
+
+    if (project.endDate != null) {
+      final difference = project.endDate!.difference(DateTime.now());
+      daysLeft = difference.inDays;
+    }
 
     return InkWell(
       onTap: () {
-        // Переход на экран детальной информации о проекте
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Просмотр проекта: ${project.name}'),
-            behavior: SnackBarBehavior.floating,
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProjectDetailsScreen(projectId: project.id),
           ),
-        );
+        ).then((_) => _loadDashboardData());
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -946,7 +1254,7 @@ class DashboardScreenState extends State<DashboardScreen> {
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              offset: Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -961,7 +1269,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       Text(
                         project.name,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF333333),
@@ -969,37 +1277,59 @@ class DashboardScreenState extends State<DashboardScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        'Клиент: ${project.client}',
+                        'Клиент: ${project.clientName}',
                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    daysLeft > 0 ? 'Осталось $daysLeft дн.' : 'Срок истек!',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color:
-                          daysLeft > 0
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.red,
+                project.endDate != null
+                    ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        daysLeft > 0 ? 'Осталось $daysLeft дн.' : 'Срок истек!',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color:
+                              daysLeft > 0
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.red,
+                        ),
+                      ),
+                    )
+                    : Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Без срока',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
@@ -1018,7 +1348,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                           ),
                           Text(
                             '${(project.progress * 100).round()}%',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF333333),
@@ -1026,7 +1356,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ],
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
@@ -1041,7 +1371,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Text(
                   'До: $formattedDueDate',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -1059,7 +1389,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Последние активности',
           style: TextStyle(
             fontSize: 18,
@@ -1067,9 +1397,9 @@ class DashboardScreenState extends State<DashboardScreen> {
             color: Color(0xFF333333),
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         Container(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -1077,22 +1407,52 @@ class DashboardScreenState extends State<DashboardScreen> {
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
                 blurRadius: 10,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: ListView.separated(
-            physics: NeverScrollableScrollPhysics(),
-            shrinkWrap: true,
-            itemCount: _recentActivities.length,
-            separatorBuilder: (context, index) => Divider(height: 24),
-            itemBuilder: (context, index) {
-              final activity = _recentActivities[index];
-              return _buildActivityItem(activity);
-            },
-          ),
+          child:
+              _recentActivities.isEmpty
+                  ? _buildEmptyActivitiesState()
+                  : ListView.separated(
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: _recentActivities.length,
+                    separatorBuilder:
+                        (context, index) => const Divider(height: 24),
+                    itemBuilder: (context, index) {
+                      final activity = _recentActivities[index];
+                      return _buildActivityItem(activity);
+                    },
+                  ),
         ),
       ],
+    );
+  }
+
+  // Пустое состояние для активностей
+  Widget _buildEmptyActivitiesState() {
+    return Center(
+      child: Column(
+        children: [
+          Icon(Icons.notifications_none, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'Нет последних активностей',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Здесь будут отображаться события в системе',
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1109,15 +1469,15 @@ class DashboardScreenState extends State<DashboardScreen> {
         break;
       case ActivityType.clientAdded:
         activityIcon = Icons.person_add;
-        iconColor = Color(0xFF26A69A);
+        iconColor = const Color(0xFF26A69A);
         break;
       case ActivityType.paymentReceived:
         activityIcon = Icons.payments;
-        iconColor = Color(0xFFFFB74D);
+        iconColor = const Color(0xFFFFB74D);
         break;
       case ActivityType.taskCompleted:
         activityIcon = Icons.task_alt;
-        iconColor = Color(0xFF66BB6A);
+        iconColor = const Color(0xFF66BB6A);
         break;
     }
 
@@ -1138,23 +1498,23 @@ class DashboardScreenState extends State<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: iconColor.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(activityIcon, size: 16, color: iconColor),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 activity.message,
-                style: TextStyle(fontSize: 14, color: Color(0xFF333333)),
+                style: const TextStyle(fontSize: 14, color: Color(0xFF333333)),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
                 timeText,
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -1178,6 +1538,8 @@ class Task {
   final DateTime dueDate;
   final TaskPriority priority;
   final TaskStatus status;
+  final String? projectId;
+  final String? projectName;
 
   Task({
     required this.id,
@@ -1185,22 +1547,8 @@ class Task {
     required this.dueDate,
     required this.priority,
     required this.status,
-  });
-}
-
-class Project {
-  final String id;
-  final String name;
-  final String client;
-  final double progress;
-  final DateTime dueDate;
-
-  Project({
-    required this.id,
-    required this.name,
-    required this.client,
-    required this.progress,
-    required this.dueDate,
+    this.projectId,
+    this.projectName,
   });
 }
 
